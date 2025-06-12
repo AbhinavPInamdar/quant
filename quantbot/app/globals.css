@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.goquant-btn {
+  background: linear-gradient(90deg, #00f0ff, #a259ff);
+  color: #ffffff;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.5), 0 0 20px rgba(162, 89, 255, 0.3);
+  transition: all 0.2s ease-in-out;
+}
+
+.goquant-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.8), 0 0 30px rgba(162, 89, 255, 0.5);
+}
+
