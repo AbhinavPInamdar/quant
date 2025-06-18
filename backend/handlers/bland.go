@@ -1,19 +1,87 @@
 package handlers
 
 import (
-	"encoding/json"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
-type BlandPayload struct {
-	Utterance      string `json:"utterance"`
-	CallID         string `json:"call_id"`
-	ConversationID string `json:"conversation_id"`
+var (
+	// blandAPIKey is stored but not used in the simplified web-based flow.
+	blandAPIKey string
+	// sessions safely stores the state of each active conversation.
+	sessions    = make(map[string]*TradingSession)
+	sessionsMux = sync.RWMutex{}
+)
+
+// TradingSession holds all the context for a single conversation.
+type TradingSession struct {
+	CallID     string            `json:"call_id"`
+	State      string            `json:"state"`
+	Exchange   string            `json:"exchange"`
+	Symbol     string            `json:"symbol"`
+	Price      float64           `json:"price"`
+	Quantity   float64           `json:"quantity"`
+	OrderPrice float64           `json:"order_price"`
+	Context    map[string]string `json:"context"`
 }
 
+// BlandPayload is the structure of the data we expect from the frontend's webhook call.
+type BlandPayload struct {
+	Utterance string `json:"utterance"`
+	CallID    string `json:"call_id"`
+}
+
+// PriceResponse structures for parsing exchange API data.
+type PriceResponse struct {
+	Symbol string `json:"symbol"`
+	Price  string `json:"price"`
+}
+
+// InitializeBland stores the API key globally.
+func InitializeBland(apiKey string) {
+	blandAPIKey = apiKey
+}
+
+// generateSessionID creates a new unique ID for a web conversation.
+func generateSessionID() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// A simple fallback in the rare case of an error.
+		return "fallback-session-id"
+	}
+	return hex.EncodeToString(bytes)
+}
+
+// StartCall is the simplified endpoint for beginning a web session.
+func StartCall(c *gin.Context) {
+	callID := generateSessionID()
+
+	session := &TradingSession{
+		CallID:  callID,
+		State:   "greeting",
+		Context: make(map[string]string),
+	}
+	updateSession(session)
+
+	log.Printf("New web session started with ID: %s", callID)
+
+	initialMessage := "Hello! Welcome to GoQuant's OTC trading service. To get started, please choose an exchange from the following options: OKX, Bybit, Deribit, or Binance."
+
+	c.JSON(http.StatusOK, gin.H{
+		"call_id": callID,
+		"message": initialMessage,
+	})
+}
+
+// HandleBlandWebhook processes the user's speech from the frontend.
 func HandleBlandWebhook(c *gin.Context) {
 	var payload BlandPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -21,54 +89,176 @@ func HandleBlandWebhook(c *gin.Context) {
 		return
 	}
 
-	utterance := strings.ToLower(payload.Utterance)
+	session := getOrCreateSession(payload.CallID)
+	utterance := strings.ToLower(strings.TrimSpace(payload.Utterance))
 
-	if strings.Contains(utterance, "binance") {
-		symbols, err := fetchBinanceSymbols()
-		if err != nil || len(symbols) == 0 {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"response": "There was a problem fetching Binance trading pairs.",
-			})
-			return
-		}
+	response := processUserInput(session, utterance)
 
-		topSymbols := strings.Join(symbols[:5], ", ")
-		c.JSON(http.StatusOK, gin.H{
-			"response": "Binance selected. Example symbols: " + topSymbols,
-		})
-		return
-	}
+	updateSession(session)
 
-	// Default fallback
-	c.JSON(http.StatusOK, gin.H{
-		"response": "You said: " + payload.Utterance,
-	})
+	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
-func fetchBinanceSymbols() ([]string, error) {
-	resp, err := http.Get("https://api.binance.com/api/v3/exchangeInfo")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+// --- State Management ---
+func getOrCreateSession(callID string) *TradingSession {
+	sessionsMux.Lock()
+	defer sessionsMux.Unlock()
 
-	var data struct {
-		Symbols []struct {
-			Symbol string `json:"symbol"`
-		} `json:"symbols"`
+	if session, exists := sessions[callID]; exists {
+		return session
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&data)
-	if err != nil {
-		return nil, err
+	session := &TradingSession{
+		CallID:  callID,
+		State:   "greeting",
+		Context: make(map[string]string),
+	}
+	sessions[callID] = session
+	return session
+}
+
+func updateSession(session *TradingSession) {
+	sessionsMux.Lock()
+	defer sessionsMux.Unlock()
+	sessions[session.CallID] = session
+}
+
+// --- State Machine Logic ---
+func processUserInput(session *TradingSession, utterance string) string {
+	switch session.State {
+	case "greeting":
+		return handleExchangeSelection(session, utterance)
+	case "exchange_selected":
+		return handleSymbolSelection(session, utterance)
+	case "symbol_selected":
+		return handleOrderDetails(session, utterance)
+	case "awaiting_quantity":
+		return handleQuantity(session, utterance)
+	case "awaiting_price":
+		return handleOrderPrice(session, utterance)
+	case "confirming":
+		return handleConfirmation(session, utterance)
+	default:
+		session.State = "greeting"
+		return "I'm sorry, I seem to have lost track. Let's start over. Which exchange would you like to trade on: OKX, Bybit, Deribit, or Binance?"
+	}
+}
+
+// --- Handler for each state ---
+
+func handleExchangeSelection(session *TradingSession, utterance string) string {
+	exchanges := map[string]string{
+		"okx":     "OKX",
+		"bybit":   "Bybit",
+		"deribit": "Deribit",
+		"binance": "Binance",
 	}
 
-	var symbols []string
-	for _, s := range data.Symbols {
-		if strings.HasSuffix(s.Symbol, "USDT") {
-			symbols = append(symbols, s.Symbol)
+	for key, name := range exchanges {
+		if strings.Contains(utterance, key) {
+			session.Exchange = name
+			session.State = "exchange_selected"
+			return fmt.Sprintf("Great! You've selected %s. Which trading symbol would you like to trade?", name)
 		}
 	}
+	return "I didn't catch that. Please choose from: OKX, Bybit, Deribit, or Binance."
+}
 
-	return symbols, nil
+func handleSymbolSelection(session *TradingSession, utterance string) string {
+	potentialSymbol := strings.ToUpper(utterance) // Normalize user input
+	price, err := fetchCurrentPrice(session.Exchange, potentialSymbol)
+	if err != nil {
+		log.Printf("Failed to fetch price for %s on %s: %v", potentialSymbol, session.Exchange, err)
+		return fmt.Sprintf("Sorry, I couldn't get the price for %s. Please try a different symbol.", potentialSymbol)
+	}
+
+	session.Symbol = potentialSymbol
+	session.Price = price
+	session.State = "symbol_selected"
+	return fmt.Sprintf("The current price for %s on %s is $%.4f. Now, what quantity and price for the order?", potentialSymbol, session.Exchange, price)
+}
+
+func handleOrderDetails(session *TradingSession, utterance string) string {
+	quantity, hasQuantity := extractNumber(utterance, []string{"quantity", "amount", "size"})
+	price, hasPrice := extractNumber(utterance, []string{"price", "at", "for"})
+
+	if hasQuantity {
+		session.Quantity = quantity
+	}
+	if hasPrice {
+		session.OrderPrice = price
+	}
+
+	if session.Quantity > 0 && session.OrderPrice > 0 {
+		session.State = "confirming"
+		return confirmOrder(session)
+	} else if session.Quantity > 0 {
+		session.State = "awaiting_price"
+		return "And at what price?"
+	} else if session.OrderPrice > 0 {
+		session.State = "awaiting_quantity"
+		return "And what quantity?"
+	}
+
+	return "I need the quantity and the price. For example, '1.5 Bitcoin at 65,000 dollars'."
+}
+
+func handleQuantity(session *TradingSession, utterance string) string {
+	quantity, hasQuantity := extractNumber(utterance, []string{})
+	if !hasQuantity {
+		return "I didn't catch that. How much do you want to trade?"
+	}
+	session.Quantity = quantity
+	session.State = "confirming"
+	return confirmOrder(session)
+}
+
+func handleOrderPrice(session *TradingSession, utterance string) string {
+	price, hasPrice := extractNumber(utterance, []string{})
+	if !hasPrice {
+		return "Sorry, what was the price?"
+	}
+	session.OrderPrice = price
+	session.State = "confirming"
+	return confirmOrder(session)
+}
+
+func handleConfirmation(session *TradingSession, utterance string) string {
+	if strings.Contains(utterance, "yes") || strings.Contains(utterance, "correct") {
+		session.State = "completed"
+		return "Excellent! Your simulated order has been recorded. Thank you for using GoQuant!"
+	} else if strings.Contains(utterance, "no") || strings.Contains(utterance, "wrong") {
+		session.State = "symbol_selected" // Go back to order details
+		session.Quantity = 0
+		session.OrderPrice = 0
+		return "No problem, let's correct it. What quantity and at what price?"
+	}
+	return "Please confirm with 'yes' or 'no'."
+}
+
+func confirmOrder(session *TradingSession) string {
+	return fmt.Sprintf("Got it. To confirm, you want to trade %.4f %s at $%.4f per unit on %s. Is that correct?",
+		session.Quantity, session.Symbol, session.OrderPrice, session.Exchange)
+}
+
+// --- Helper Functions ---
+
+func extractNumber(text string, keywords []string) (float64, bool) {
+	// A simple number extractor. A real-world app would use a more robust NLP library.
+	words := strings.Fields(strings.ReplaceAll(text, ",", ""))
+	for _, word := range words {
+		cleanWord := strings.Trim(word, ".,!?$")
+		if num, err := strconv.ParseFloat(cleanWord, 64); err == nil {
+			return num, true
+		}
+	}
+	return 0, false
+}
+
+func fetchCurrentPrice(exchange, symbol string) (float64, error) {
+	// This function can be expanded with real API calls as in previous versions.
+	// For now, it returns a mock price for simplicity.
+	log.Printf("Fetching price for %s on %s", symbol, exchange)
+	// Mock Price
+	return 65123.45, nil
 }
