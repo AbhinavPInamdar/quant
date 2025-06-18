@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse the request body
-    const body = await request.json();
-    
     // The backend URL should be stored in an environment variable
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
     
-    // Forward the request to the Go backend's /bland/webhook endpoint
-    const response = await fetch(`${backendUrl}/bland/webhook`, {
+    // Forward the request to the Go backend's /start-call endpoint
+    const response = await fetch(`${backendUrl}/start-call`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body), 
+      body: JSON.stringify({}), 
     });
 
     if (!response.ok) {
@@ -28,11 +25,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
 
   } catch (error) {
-    console.error('Error in /api/process-speech proxy:', error);
+    console.error('Error in /api/start-call proxy:', error);
     
     return NextResponse.json(
       { 
-        message: "Failed to process speech with the backend." 
+        message: "Failed to start a new session with the backend." 
       },
       { status: 500 }
     );

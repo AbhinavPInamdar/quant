@@ -3,12 +3,14 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -256,9 +258,44 @@ func extractNumber(text string, keywords []string) (float64, bool) {
 }
 
 func fetchCurrentPrice(exchange, symbol string) (float64, error) {
-	// This function can be expanded with real API calls as in previous versions.
-	// For now, it returns a mock price for simplicity.
 	log.Printf("Fetching price for %s on %s", symbol, exchange)
-	// Mock Price
+
+	// Simple implementation using CoinGecko API (free tier)
+	// For production, you'd want to use the specific exchange APIs
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Convert symbol to CoinGecko format (this is simplified)
+	coinId := strings.ToLower(symbol)
+	if strings.Contains(coinId, "btc") || strings.Contains(coinId, "bitcoin") {
+		coinId = "bitcoin"
+	} else if strings.Contains(coinId, "eth") || strings.Contains(coinId, "ethereum") {
+		coinId = "ethereum"
+	}
+
+	url := fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=usd", coinId)
+
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Printf("Error fetching price: %v", err)
+		return 0, fmt.Errorf("failed to fetch price data")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("API returned status: %d", resp.StatusCode)
+	}
+
+	var priceData map[string]map[string]float64
+	if err := json.NewDecoder(resp.Body).Decode(&priceData); err != nil {
+		return 0, fmt.Errorf("failed to decode price response")
+	}
+
+	if price, exists := priceData[coinId]["usd"]; exists {
+		return price, nil
+	}
+
+	// Fallback to mock price if not found
+	log.Printf("Price not found for %s, using mock price", symbol)
 	return 65123.45, nil
 }
