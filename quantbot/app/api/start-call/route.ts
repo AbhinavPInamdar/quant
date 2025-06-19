@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // The backend URL should be stored in an environment variable
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
     
-    // Forward the request to the Go backend's /start-call endpoint
     const response = await fetch(`${backendUrl}/start-call`, {
       method: 'POST',
       headers: {

@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse the request body
     const body = await request.json();
     
-    // The backend URL should be stored in an environment variable
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
     
-    // Forward the request to the Go backend's /bland/webhook endpoint
     const response = await fetch(`${backendUrl}/bland/webhook`, {
       method: 'POST',
       headers: {

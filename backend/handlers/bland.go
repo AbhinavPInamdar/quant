@@ -16,14 +16,11 @@ import (
 )
 
 var (
-	// blandAPIKey is stored but not used in the simplified web-based flow.
 	blandAPIKey string
-	// sessions safely stores the state of each active conversation.
 	sessions    = make(map[string]*TradingSession)
 	sessionsMux = sync.RWMutex{}
 )
 
-// TradingSession holds all the context for a single conversation.
 type TradingSession struct {
 	CallID     string            `json:"call_id"`
 	State      string            `json:"state"`
@@ -35,34 +32,28 @@ type TradingSession struct {
 	Context    map[string]string `json:"context"`
 }
 
-// BlandPayload is the structure of the data we expect from the frontend's webhook call.
 type BlandPayload struct {
 	Utterance string `json:"utterance"`
 	CallID    string `json:"call_id"`
 }
 
-// PriceResponse structures for parsing exchange API data.
 type PriceResponse struct {
 	Symbol string `json:"symbol"`
 	Price  string `json:"price"`
 }
 
-// InitializeBland stores the API key globally.
 func InitializeBland(apiKey string) {
 	blandAPIKey = apiKey
 }
 
-// generateSessionID creates a new unique ID for a web conversation.
 func generateSessionID() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
-		// A simple fallback in the rare case of an error.
 		return "fallback-session-id"
 	}
 	return hex.EncodeToString(bytes)
 }
 
-// StartCall is the simplified endpoint for beginning a web session.
 func StartCall(c *gin.Context) {
 	callID := generateSessionID()
 
@@ -83,7 +74,6 @@ func StartCall(c *gin.Context) {
 	})
 }
 
-// HandleBlandWebhook processes the user's speech from the frontend.
 func HandleBlandWebhook(c *gin.Context) {
 	var payload BlandPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -101,7 +91,6 @@ func HandleBlandWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"response": response})
 }
 
-// --- State Management ---
 func getOrCreateSession(callID string) *TradingSession {
 	sessionsMux.Lock()
 	defer sessionsMux.Unlock()
@@ -125,7 +114,6 @@ func updateSession(session *TradingSession) {
 	sessions[session.CallID] = session
 }
 
-// --- State Machine Logic ---
 func processUserInput(session *TradingSession, utterance string) string {
 	switch session.State {
 	case "greeting":
@@ -146,8 +134,6 @@ func processUserInput(session *TradingSession, utterance string) string {
 	}
 }
 
-// --- Handler for each state ---
-
 func handleExchangeSelection(session *TradingSession, utterance string) string {
 	exchanges := map[string]string{
 		"okx":     "OKX",
@@ -167,7 +153,7 @@ func handleExchangeSelection(session *TradingSession, utterance string) string {
 }
 
 func handleSymbolSelection(session *TradingSession, utterance string) string {
-	potentialSymbol := strings.ToUpper(utterance) // Normalize user input
+	potentialSymbol := strings.ToUpper(utterance)
 	price, err := fetchCurrentPrice(session.Exchange, potentialSymbol)
 	if err != nil {
 		log.Printf("Failed to fetch price for %s on %s: %v", potentialSymbol, session.Exchange, err)
@@ -243,10 +229,7 @@ func confirmOrder(session *TradingSession) string {
 		session.Quantity, session.Symbol, session.OrderPrice, session.Exchange)
 }
 
-// --- Helper Functions ---
-
 func extractNumber(text string, keywords []string) (float64, bool) {
-	// A simple number extractor. A real-world app would use a more robust NLP library.
 	words := strings.Fields(strings.ReplaceAll(text, ",", ""))
 	for _, word := range words {
 		cleanWord := strings.Trim(word, ".,!?$")
@@ -260,12 +243,8 @@ func extractNumber(text string, keywords []string) (float64, bool) {
 func fetchCurrentPrice(exchange, symbol string) (float64, error) {
 	log.Printf("Fetching price for %s on %s", symbol, exchange)
 
-	// Simple implementation using CoinGecko API (free tier)
-	// For production, you'd want to use the specific exchange APIs
-
 	client := &http.Client{Timeout: 10 * time.Second}
 
-	// Convert symbol to CoinGecko format (this is simplified)
 	coinId := strings.ToLower(symbol)
 	if strings.Contains(coinId, "btc") || strings.Contains(coinId, "bitcoin") {
 		coinId = "bitcoin"
@@ -295,7 +274,6 @@ func fetchCurrentPrice(exchange, symbol string) (float64, error) {
 		return price, nil
 	}
 
-	// Fallback to mock price if not found
 	log.Printf("Price not found for %s, using mock price", symbol)
 	return 65123.45, nil
 }
