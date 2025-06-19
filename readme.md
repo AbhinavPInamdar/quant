@@ -2,7 +2,7 @@
 
 A voice-based OTC (Over-The-Counter) trading assistant built with Next.js frontend and Go backend. The bot allows users to place simulated trading orders through voice commands using speech recognition and text-to-speech capabilities.
 
-## 🏗️ Architecture
+##  Architecture
 
 - **Frontend**: Next.js 15 with TypeScript, Tailwind CSS
 - **Backend**: Go with Gin framework
@@ -10,7 +10,7 @@ A voice-based OTC (Over-The-Counter) trading assistant built with Next.js fronte
 - **Text-to-Speech**: Web Speech Synthesis API
 - **Price Data**: CoinGecko API
 
-## ✨ Features
+##  Features
 
 - Voice-based trading interface
 - Real-time speech recognition
@@ -20,20 +20,17 @@ A voice-based OTC (Over-The-Counter) trading assistant built with Next.js fronte
 - Session management
 - Debug console for troubleshooting
 
-## 🔧 Prerequisites
+##  Prerequisites
 
 - **Node.js** (v18 or higher)
 - **Go** (v1.24.1 or higher)
 - **Modern web browser** with Web Speech API support (Chrome, Edge, Safari)
 - **Microphone access** for voice features
 
-## 📦 Installation
+##  Installation
 
 ### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd <your-repo-name>
-```
+
 
 ### 2. Backend Setup
 
@@ -58,8 +55,6 @@ BLAND_API_KEY=your_bland_api_key_here
 PORT=8080
 ```
 
-> **Note**: The BLAND_API_KEY is optional for basic functionality. The bot will work without it, but you'll see a warning in the logs.
-
 ### 3. Frontend Setup
 
 Navigate to the frontend directory:
@@ -82,7 +77,7 @@ Add the following environment variable:
 BACKEND_URL=http://localhost:8080
 ```
 
-## 🚀 Running the Application
+##  Running the Application
 
 ### 1. Start the Backend Server
 
@@ -138,7 +133,7 @@ You: "Yes"
 Bot: "Excellent! Your simulated order has been recorded. Thank you for using GoQuant!"
 ```
 
-## 🔍 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -169,7 +164,7 @@ The application includes a debug console that shows:
 - API calls and responses
 - Error messages
 
-## 🌐 API Endpoints
+##  API Endpoints
 
 ### Backend Endpoints
 - `POST /start-call` - Initialize a new trading session
@@ -180,7 +175,7 @@ The application includes a debug console that shows:
 - `POST /api/start-call` - Proxy to backend start-call
 - `POST /api/process-speech` - Proxy to backend webhook
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 ├── backend/
@@ -200,14 +195,14 @@ The application includes a debug console that shows:
 └── README.md
 ```
 
-## 🔒 Security Notes
+##  Security Notes
 
 - This is a **simulation/demo** - no real trades are executed
 - Microphone access is required for voice features
 - All trading data is stored in memory (sessions are not persistent)
 - No sensitive trading credentials are handled
 
-## 🚀 Deployment
+##  Deployment
 
 ### Backend Deployment
 - Set environment variables in your deployment platform
@@ -219,26 +214,6 @@ The application includes a debug console that shows:
 - Ensure your deployment platform supports Web Speech API
 - Configure proper HTTPS (required for microphone access in production)
 
-## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
-## 📄 License
 
-This project is for educational/demonstration purposes.
-
-## 🆘 Support
-
-If you encounter issues:
-1. Check the debug console in the application
-2. Verify all prerequisites are met
-3. Ensure proper browser permissions
-4. Check backend logs for detailed error messages
-
----
-
-**Note**: This trading bot is for simulation purposes only and does not execute real trades. Always use proper risk management and consult with financial professionals for real trading decisions.
